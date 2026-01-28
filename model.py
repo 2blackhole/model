@@ -25,8 +25,8 @@ for filename in all_files:
     try:
         temp = pd.read_excel(filename, skiprows=6, engine='openpyxl')
         
-        temp = temp.iloc[:, [0, 1, 2, 4, 6, 8, 9]]
-        temp.columns = ['datetime', 'p1', 't1', 'v1', 'p2', 't2', 'v2']
+        temp = temp.iloc[:, [0, 1, 2, 4, 6, 8, 9, 10]]
+        temp.columns = ['datetime', 'p1', 't1', 'v1', 'p2', 't2', 'v2', 'q_heat']
         temp['datetime'] = pd.to_datetime(temp['datetime'], dayfirst=True, errors='coerce')
         temp = temp.dropna(subset=['datetime'])
         
@@ -39,7 +39,7 @@ sensors = pd.concat(df_list, ignore_index=True)
 
 sensors = sensors.sort_values('datetime').reset_index(drop=True)
 
-for col in ['p1', 't1', 'v1', 'p2', 't2', 'v2']:
+for col in ['p1', 't1', 'v1', 'p2', 't2', 'v2', 'q_heat']:
     sensors[col] = pd.to_numeric(sensors[col], errors='coerce')
 
 sensors = sensors.dropna()
@@ -79,14 +79,16 @@ for f_date in failures['date_fail']:
 sensors['delta_p'] = sensors['p1'] - sensors['p2']
 sensors['delta_t'] = sensors['t1'] - sensors['t2']
 
-sensors['p1_mean_3d'] = sensors['p1'].rolling(window=3).mean()
-sensors['p1_std_3d'] = sensors['p1'].rolling(window=3).std()
+ROLLING = 3
+sensors['p1_mean_3d'] = sensors['p1'].rolling(window=ROLLING).mean()
+sensors['p1_std_3d'] = sensors['p1'].rolling(window=ROLLING).std()
+sensors['q_heat_mean_3d'] = sensors['q_heat'].rolling(window=ROLLING).mean()
 sensors['v_diff'] = sensors['v1'] - sensors['v2']
 
 df_final = sensors.dropna().drop(columns=['date_only'])
 
-WINDOW_SIZE = 5 
-features_to_lag = ['p1', 't1', 'v1', 'p2', 't2', 'v2', 'delta_p', 'v_diff']
+WINDOW_SIZE = 4
+features_to_lag = ['delta_p', 'v_diff', 'delta_t', 'q_heat_mean_3d', 'p1_mean_3d', 'p1_std_3d']
 
 for col in features_to_lag:
     for window in range(1, WINDOW_SIZE + 1):
@@ -110,8 +112,8 @@ print(f"Размер тестовой выборки: {X_test.shape}")
 ratio = float(np.sum(y == 0)) / np.sum(y == 1)
 model = xgb.XGBClassifier(
     n_estimators=1000,
-    learning_rate=0.05,
-    max_depth=6,
+    learning_rate=0.4,
+    max_depth=7,
     scale_pos_weight=ratio,
     eval_metric='auc',
     early_stopping_rounds=50,
